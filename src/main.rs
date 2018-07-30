@@ -13,22 +13,30 @@ use rand::os::OsRng;
 pub use rustc_serialize::hex::ToHex;
 use secp256k1::Error;
 use std::io::{stdin, stdout, Write};
+use std::thread;
 
 fn main() {
     let chars = get_string();
     let mut found = false;
-    let mut public: secp256k1::key::PublicKey;
-    let mut address: String;
+    let mut public: secp256k1::key::PublicKey = secp256k1::key::PublicKey::new();
     let mut index = 0;
     while !found {
-        public = get_public_key();
-        address = get_bitcoin_address(public);
-        let slice = &address[1..chars.len() + 1];
-        println!("{}: {}", index, address);
-        if chars == slice {
-            found = true;
-        }
+        let chars = chars.clone();
+        let mut address: String = String::from("Init");
+        let handle = thread::spawn(move || {
+            public = get_public_key();
+            address = get_bitcoin_address(public);
+            let slice = &address[1..chars.len() + 1];
+            println!("{}: {}", index, address);
+            if chars == slice {
+                found = true;
+            }
+            //thread::sleep(Duration::from_secs(1));
+        });
         index += 1;
+        if index % 6 == 0 {
+            handle.join().unwrap();
+        }
     }
 }
 
