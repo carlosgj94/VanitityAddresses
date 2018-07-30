@@ -59,6 +59,7 @@ fn get_public_key() -> secp256k1::key::PublicKey {
     public
 }
 
+/*
 fn get_bitcoin_address(public: secp256k1::key::PublicKey) -> String {
     let context = secp256k1::Secp256k1::new();
     let mut sha256 = Sha256::new();
@@ -69,4 +70,24 @@ fn get_bitcoin_address(public: secp256k1::key::PublicKey) -> String {
     //let data = network.push_str(ripemd.result_str()).as_bytes();
     let data = format!("{}{}", network, ripemd.result_str());
     data.as_bytes().to_base58()
+}
+*/
+
+fn get_bitcoin_address(public: secp256k1::key::PublicKey) -> String {
+    let context = secp256k1::Secp256k1::new();
+    let mut sha256 = Sha256::new();
+    let mut ripemd = Ripemd160::new();
+    sha256.input(&public.serialize_vec(&context, false).as_slice());
+    ripemd.input_str(&sha256.result_str());
+    let mut result = [0u8; 25];
+    let mut checksum = [0u8; 32];
+    ripemd.result(&mut result[1..21]);
+    sha256.reset();
+    sha256.input(&result[..21]);
+    sha256.result(&mut checksum);
+    sha256.reset();
+    sha256.input(&checksum);
+    sha256.result(&mut checksum);
+    result[21..25].copy_from_slice(&*checksum[0..4].to_owned());
+    result.to_base58()
 }
