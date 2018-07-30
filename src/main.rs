@@ -1,9 +1,14 @@
+extern crate arrayvec;
 extern crate base58;
+extern crate crypto;
 extern crate rand;
 extern crate rustc_serialize;
 extern crate secp256k1;
 
 use base58::ToBase58;
+use crypto::digest::Digest;
+use crypto::ripemd160::Ripemd160;
+use crypto::sha2::Sha256;
 use rand::os::OsRng;
 pub use rustc_serialize::hex::ToHex;
 use secp256k1::Error;
@@ -12,14 +17,18 @@ use std::io::{stdin, stdout, Write};
 fn main() {
     let chars = get_string();
     let mut found = false;
-    let mut public: String;
+    let mut public: secp256k1::key::PublicKey;
+    let mut address: String;
+    let mut index = 0;
     while !found {
-        public = get_private_key();
-        let slice = &public[1..chars.len() + 1];
-        println!("{}", slice);
+        public = get_public_key();
+        address = get_bitcoin_address(public);
+        let slice = &address[1..chars.len() + 1];
+        println!("{}: {}", index, address);
         if chars == slice {
             found = true;
         }
+        index += 1;
     }
 }
 
@@ -41,14 +50,23 @@ fn get_string() -> String {
     s
 }
 
-fn get_private_key() -> String {
+fn get_public_key() -> secp256k1::key::PublicKey {
     let context = secp256k1::Secp256k1::new();
     let rng = OsRng::new().map_err(|_| Error::InvalidSecretKey).ok();
     let res = context.generate_keypair(&mut rng.unwrap());
     let (_secret, public) = res.unwrap();
-    println!(
-        "{:?}",
-        public.serialize_vec(&context, false).as_slice().to_base58()
-    );
-    public.serialize_vec(&context, false).as_slice().to_base58()
+    // public.serialize_vec(&context, false).as_slice().to_base58()
+    public
+}
+
+fn get_bitcoin_address(public: secp256k1::key::PublicKey) -> String {
+    let context = secp256k1::Secp256k1::new();
+    let mut sha256 = Sha256::new();
+    let mut ripemd = Ripemd160::new();
+    sha256.input(&public.serialize_vec(&context, false).as_slice());
+    ripemd.input_str(&sha256.result_str());
+    let network: String = "0".to_owned();
+    //let data = network.push_str(ripemd.result_str()).as_bytes();
+    let data = format!("{}{}", network, ripemd.result_str());
+    data.as_bytes().to_base58()
 }
